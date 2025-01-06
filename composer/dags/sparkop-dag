@@ -1,0 +1,56 @@
+"""
+This is an example DAG that uses SparkKubernetesOperator to submit a SparkApplication
+to a Kubernetes cluster and manage its lifecycle.
+
+Requirements:
+- Spark-on-Kubernetes operator must be installed: 
+  https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
+- Airflow configured with appropriate Kubernetes connection.
+
+This DAG is set to run manually, with no automatic scheduling or backfilling.
+"""
+
+from datetime import datetime
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import SparkKubernetesOperator
+
+# Default arguments for all tasks in the DAG
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'start_date': datetime(2025, 1, 1),  # Static start date for clarity
+    'email': ['airflow@example.com'],
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 0,
+    'max_active_runs': 1  # Only allow one active run at a time
+}
+
+# Define the DAG
+with DAG(
+    dag_id='spark_app_demo',
+    default_args=default_args,
+    description='A manual DAG for submitting Spark jobs to Kubernetes',
+    schedule_interval=None,  # Disable automatic scheduling
+    catchup=False,  # Disable backfill runs
+    tags=['spark', 'kubernetes', 'example']
+) as dag:
+
+    # Task 1: Simple Bash Task for validation
+    hello_world_task = BashOperator(
+        task_id='hello_world_task',
+        bash_command='echo "Hello, World!"'
+    )
+
+    # Task 2: Submit a SparkApplication to Kubernetes
+    submit_spark_application = SparkKubernetesOperator(
+        task_id='spark_transform_data',
+        namespace='spark-apps',
+        application_file='template-spark-pi.yaml',
+        kubernetes_conn_id='sparkgke',
+        do_xcom_push=True
+    )
+
+    # Task dependencies
+    hello_world_task >> submit_spark_application
